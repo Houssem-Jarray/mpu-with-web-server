@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, content-fit=cover">
+    <title>3D Cube with Axes</title>
+    <style>
+        body { margin: 0; overflow: hidden; font-family: Arial, sans-serif; }
+        canvas { display: block; }
+        #angleDisplay {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            font-size: 18px;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 10px;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div id="angleDisplay"></div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        let scene, camera, renderer, cube, wireframe, axesHelper;
+        let lastOrientation = { pitch: 0, roll: 0, yaw: 0 };
+        let smoothingFactor = 0.1;
+
+        function init() {
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
+
+            const geometry = new THREE.BoxGeometry();
+            const material = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide });
+            cube = new THREE.Mesh(geometry, material);
+            scene.add(cube);
+
+            // Create a wireframe for the cube
+            const edges = new THREE.EdgesGeometry(geometry);
+            wireframe = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x000000 }));
+            cube.add(wireframe); // Add wireframe to the cube
+
+            axesHelper = new THREE.AxesHelper(5);
+            scene.add(axesHelper);
+
+            // Create a ground plane
+            const planeGeometry = new THREE.PlaneGeometry(100, 100);
+            const planeMaterial = new THREE.MeshBasicMaterial({ color: 0xaaaaaa, side: THREE.DoubleSide });
+            const plane = new THREE.Mesh(planeGeometry, planeMaterial);
+            plane.rotation.x = Math.PI / 2; // Rotate plane to be horizontal
+            scene.add(plane);
+
+            camera.position.z = 5;
+            animate();
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            renderer.render(scene, camera);
+        }
+        const offsets = { pitch: 0, roll: 0, yaw: 0 * (Math.PI / 180) }; // Convert Yaw to radians
+
+        async function updateCubeOrientation() {
+            try {
+                const response = await fetch('/orientation');
+                const data = await response.json();
+
+                // Apply calibration offsets
+                lastOrientation.pitch = lastOrientation.pitch + smoothingFactor * ((data.pitch - offsets.pitch) - lastOrientation.pitch);
+                lastOrientation.roll = lastOrientation.roll + smoothingFactor * ((data.roll - offsets.roll) - lastOrientation.roll);
+                lastOrientation.yaw = lastOrientation.yaw + smoothingFactor * ((data.yaw - offsets.yaw) - lastOrientation.yaw);
+
+                cube.rotation.x = lastOrientation.pitch;
+                cube.rotation.y = lastOrientation.roll;
+                cube.rotation.z = lastOrientation.yaw;
+
+                // Update angle display
+                document.getElementById('angleDisplay').innerHTML = `
+                    Pitch: ${(lastOrientation.pitch * (180 / Math.PI)).toFixed(2)}<br>
+                    Roll: ${(lastOrientation.roll * (180 / Math.PI)).toFixed(2)}<br>
+                    Yaw: ${(lastOrientation.yaw * (180 / Math.PI)).toFixed(2)}
+                `;
+            } catch (error) {
+                console.error("Error fetching orientation:", error);
+            }
+
+            setTimeout(updateCubeOrientation, 100);
+        }
+
+        init();
+        updateCubeOrientation();
+    </script>
+</body>
+</html>
+
